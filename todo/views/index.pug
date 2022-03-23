@@ -1,0 +1,172 @@
+extends layouts/main
+
+block content
+    h1.todo-title TODO's
+
+    div(x-data="todo("+ JSON.stringify(data) +")")
+        form(@submit.prevent="! sending && handleSubmit", class="todo-form")
+            div.form-group
+                input(
+                    type="text",
+                    id="todo",
+                    name="todo",
+                    placeholder="Add a TO-DO",
+                    autocomplete="off",
+                    class="form-field"
+                    x-model="todoText"
+                )
+                button(
+                    type="submit",
+                    :class="{ 'disabled': sending, 'btn-success': ! editID, 'btn-edit': editID }",
+                    class="btn btn-success",
+                    x-text="! editID ? 'Add New' : 'Edit Now'"
+                ) Add New
+
+        ul(class="todo-list", x-todos="todos")
+            template(x-for="todo in todos", :key="todo.id")
+                li.todo-item
+                    span.todo-item_text(x-text="todo.text")
+                    span.btn-group
+                        button(
+                            @click="handleEdit(todo.id)",
+                            :class="{'disabled': sending}",
+                            class="btn btn-edit btn-left"
+                        ) Edit
+                        button(
+                            @click="handleDelete(todo.id)",
+                            :class="{'disabled': sending}"
+                            class="btn btn-delete btn-right"
+                        ) Delete
+block head
+    style.
+        .todo-title {
+            color: var(--blue);
+            font-size: 60px;
+            font-weight: 900;
+            margin-bottom: 10px;
+        }
+
+        .todo-form .form-group > * {
+            width: 100%;
+        }
+
+        .todo-form .form-group > * ~ *:not([hidden]) {
+            margin-top: 10px;
+        }
+
+        .todo-list {
+            list-style: none;
+            padding: 0;
+            margin: 40px 0 0 0;
+        }
+
+        .todo-list > .todo-item {
+            align-items: center;
+            border-radius: 10px;
+            border-top: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 0px 5px 10px -3px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            padding: 15px 20px;
+        }
+
+        .todo-list > .todo-item ~.todo-item:not([hidden]) {
+            margin-top: 15px;
+        }
+
+        .todo-list .todo-item_text {
+            user-select: none !important;
+        }
+
+        @media (max-width: 579px) {
+            .btn-group {
+                margin-top: 20px;
+            }
+        } 
+
+        @media (min-width: 580px) {
+            .todo-list > .todo-item {
+                flex-direction: row;
+            }
+
+            .todo-item > .todo-item_text {
+                flex: 0 1 calc(100% - 150px);
+            }
+
+            .todo-item > .btn-group {
+                flex: 1 0 150px;
+            }
+        }
+
+        .btn-group {
+            display: flex;
+            margin-left: 10px;
+        }
+
+        .btn-group .btn.btn-left {
+            border-radius: 5px 0px 0px 5px !important;
+        }
+
+        .btn-group .btn.btn-right {
+            border-radius: 0px 5px 5px 0px !important;
+        }
+
+block footer
+    script(src="https://unpkg.com/alpinejs", defer, type="text/javascript")
+
+    script(type="text/javascript").
+        document.addEventListener('alpine:init',  () => {
+            Alpine.data('todo', (todos = []) => ({
+                todos: todos,
+                editID: null,
+                sending: false,
+                todoText: '',
+
+                async handleSubmit() {
+                    const url    = this.editID ? `/${this.editID}` : '/';
+                    const method = this.editID ? 'PUT' : 'POST';
+
+                    if (! this.todoText) return;
+
+                    this.sending = true;
+
+                    const res = await fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: this.todoText }),
+                    });
+
+                    const { data } = await res.json();
+
+                    // add the new element
+                    if (this.editID) {
+                        this.todos = this.todos.map(todo => (todo.id !== this.editID) ? todo : { ...todo, text: this.todoText });
+                    } else {
+                        this.todos = [{id: data.id, text: this.todoText}, ...this.todos];
+                    }
+
+                    this.sending  = false;
+                    this.todoText = '';
+                    this.editID   = null;
+                },
+
+                async handleEdit(id) {
+                    const todo  = this.todos.filter(todo => todo.id === id).pop();
+                    this.editID = id;
+                    this.todoText = todo.text;
+                },
+
+                async handleDelete(id) {
+                    this.sending = true;
+
+                    const res  = await fetch(`/${id}`, { method: 'DELETE' });
+                    const data = await res.json();
+                    
+                    this.sending = false;
+
+                    if (! data.status) return;
+
+                    this.todos = this.todos.filter(todo => todo.id !== id);
+                },
+            }));
+        });
